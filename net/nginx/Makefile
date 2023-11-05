@@ -148,6 +148,8 @@ define Package/nginx-ssl/install
 	$(INSTALL_DATA) $(addprefix $(PKG_INSTALL_DIR)/etc/nginx/,$(config_files)) $(1)/etc/nginx/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/nginx.init $(1)/etc/init.d/nginx
+	$(INSTALL_DIR) $(1)/etc/udhcpc.user.d
+	$(INSTALL_DATA) ./files/nginx_wan.udhcpc $(1)/etc/udhcpc.user.d/nginx_wan
 endef
 
 define Package/nginx-ssl/prerm

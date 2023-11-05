@@ -12,6 +12,7 @@ include module.d/*.module;
 events {}
 
 http {
+	http2 on;
 	access_log off;
 	log_format openwrt
 		'$request_method $scheme://$host$request_uri => $status'

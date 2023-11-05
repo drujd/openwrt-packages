@@ -1,0 +1,168 @@
+From a471122dc72bacdc3ca3d9c2298d6dd0a2fed2e9 Mon Sep 17 00:00:00 2001
+From: Jan Klos <jan@klos.xyz>
+Date: Thu, 15 Feb 2024 18:28:34 +0100
+Subject: [PATCH] add proxy_expire
+
+Signed-off-by: Jan Klos <jan@klos.xyz>
+---
+ .../modules/ngx_http_headers_filter_module.c  | 64 +++++++++++++++++--
+ 1 file changed, 57 insertions(+), 7 deletions(-)
+
+diff --git a/src/http/modules/ngx_http_headers_filter_module.c b/src/http/modules/ngx_http_headers_filter_module.c
+index 90e6da8b3..4a1ed28cf 100644
+--- a/src/http/modules/ngx_http_headers_filter_module.c
++++ b/src/http/modules/ngx_http_headers_filter_module.c
+@@ -49,6 +49,7 @@ typedef struct {
+     ngx_http_complex_value_t  *expires_value;
+     ngx_array_t               *headers;
+     ngx_array_t               *trailers;
++    ngx_int_t                  proxy;
+ } ngx_http_headers_conf_t;
+ 
+ 
+@@ -71,6 +72,10 @@ static char *ngx_http_headers_merge_conf(ngx_conf_t *cf,
+ static ngx_int_t ngx_http_headers_filter_init(ngx_conf_t *cf);
+ static char *ngx_http_headers_expires(ngx_conf_t *cf, ngx_command_t *cmd,
+     void *conf);
++static char *ngx_http_headers_expires_proxy(ngx_conf_t *cf, ngx_command_t *cmd,
++    void *conf);
++static char *ngx_http_headers_expires_impl(ngx_conf_t *cf, ngx_command_t *cmd,
++    void *conf, int proxy);
+ static char *ngx_http_headers_add(ngx_conf_t *cf, ngx_command_t *cmd,
+     void *conf);
+ 
+@@ -107,6 +112,14 @@ static ngx_command_t  ngx_http_headers_filter_commands[] = {
+       0,
+       NULL },
+ 
++    { ngx_string("proxy_expires"),
++      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF
++                        |NGX_CONF_TAKE12,
++      ngx_http_headers_expires_proxy,
++      NGX_HTTP_LOC_CONF_OFFSET,
++      0,
++      NULL },
++
+     { ngx_string("add_header"),
+       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF
+                         |NGX_CONF_TAKE23,
+@@ -328,12 +341,13 @@ ngx_http_set_expires(ngx_http_request_t *r, ngx_http_headers_conf_t *conf)
+     size_t               len;
+     time_t               now, expires_time, max_age;
+     ngx_str_t            value;
+-    ngx_int_t            rc;
++    ngx_int_t            rc, proxy;
+     ngx_table_elt_t     *e, *cc;
+     ngx_http_expires_t   expires;
+ 
+     expires = conf->expires;
+     expires_time = conf->expires_time;
++    proxy = conf->proxy;
+ 
+     if (conf->expires_value != NULL) {
+ 
+@@ -405,7 +419,11 @@ ngx_http_set_expires(ngx_http_request_t *r, ngx_http_headers_conf_t *conf)
+     if (expires == NGX_HTTP_EXPIRES_MAX) {
+         e->value.data = (u_char *) "Thu, 31 Dec 2037 23:55:55 GMT";
+         /* 10 years */
+-        ngx_str_set(&cc->value, "max-age=315360000");
++        if (proxy) {
++            ngx_str_set(&cc->value, "s-maxage=315360000");
++        } else {
++            ngx_str_set(&cc->value, "max-age=315360000");
++        }
+         return NGX_OK;
+     }
+ 
+@@ -419,7 +437,11 @@ ngx_http_set_expires(ngx_http_request_t *r, ngx_http_headers_conf_t *conf)
+     if (expires_time == 0 && expires != NGX_HTTP_EXPIRES_DAILY) {
+         ngx_memcpy(e->value.data, ngx_cached_http_time.data,
+                    ngx_cached_http_time.len + 1);
+-        ngx_str_set(&cc->value, "max-age=0");
++        if (proxy) {
++            ngx_str_set(&cc->value, "s-maxage=0");
++        } else {
++            ngx_str_set(&cc->value, "max-age=0");
++        }
+         return NGX_OK;
+     }
+ 
+@@ -447,15 +469,26 @@ ngx_http_set_expires(ngx_http_request_t *r, ngx_http_headers_conf_t *conf)
+         return NGX_OK;
+     }
+ 
+-    cc->value.data = ngx_pnalloc(r->pool,
+-                                 sizeof("max-age=") + NGX_TIME_T_LEN + 1);
++    if (proxy) {
++        cc->value.data = ngx_pnalloc(r->pool,
++                                     sizeof("s-maxage=") + NGX_TIME_T_LEN + 1);
++    } else {
++        cc->value.data = ngx_pnalloc(r->pool,
++                                     sizeof("max-age=") + NGX_TIME_T_LEN + 1);
++    }
++
+     if (cc->value.data == NULL) {
+         cc->hash = 0;
+         return NGX_ERROR;
+     }
+ 
+-    cc->value.len = ngx_sprintf(cc->value.data, "max-age=%T", max_age)
+-                    - cc->value.data;
++    if (proxy) {
++        cc->value.len = ngx_sprintf(cc->value.data, "s-maxage=%T", max_age)
++                        - cc->value.data;
++    } else {
++        cc->value.len = ngx_sprintf(cc->value.data, "max-age=%T", max_age)
++                        - cc->value.data;
++    }
+ 
+     return NGX_OK;
+ }
+@@ -657,6 +690,7 @@ ngx_http_headers_create_conf(ngx_conf_t *cf)
+      */
+ 
+     conf->expires = NGX_HTTP_EXPIRES_UNSET;
++    conf->proxy = 0;
+ 
+     return conf;
+ }
+@@ -672,6 +706,7 @@ ngx_http_headers_merge_conf(ngx_conf_t *cf, void *parent, void *child)
+         conf->expires = prev->expires;
+         conf->expires_time = prev->expires_time;
+         conf->expires_value = prev->expires_value;
++        conf->proxy = prev->proxy;
+ 
+         if (conf->expires == NGX_HTTP_EXPIRES_UNSET) {
+             conf->expires = NGX_HTTP_EXPIRES_OFF;
+@@ -705,6 +740,18 @@ ngx_http_headers_filter_init(ngx_conf_t *cf)
+ 
+ static char *
+ ngx_http_headers_expires(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
++{
++    return ngx_http_headers_expires_impl(cf, cmd, conf, 0);
++}
++
++static char *
++ngx_http_headers_expires_proxy(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
++{
++    return ngx_http_headers_expires_impl(cf, cmd, conf, 1);
++}
++
++static char *
++ngx_http_headers_expires_impl(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int proxy)
+ {
+     ngx_http_headers_conf_t *hcf = conf;
+ 
+@@ -767,6 +814,9 @@ ngx_http_headers_expires(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+         return err;
+     }
+ 
++    if (proxy)
++        hcf->proxy = 1;
++
+     return NGX_CONF_OK;
+ }
+ 
+-- 
+2.43.2
+

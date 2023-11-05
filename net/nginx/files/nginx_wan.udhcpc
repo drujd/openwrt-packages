@@ -1,0 +1,19 @@
+#!/bin/sh
+
+[ "$1" = 'bound' ] || exit
+
+. /lib/functions.sh
+config_load nginx
+config_get WAN_CONFIG_DIR global wan_config_dir
+
+[ -n "$WAN_CONFIG_DIR" ] || exit
+
+. /lib/functions/network.sh
+handle_wan_interface() {
+	local value="$1"
+	if [ ! -f /var/lib/nginx/$1.listen ] || [ "$(cat /var/lib/nginx/$1.listen)" != "listen $ip:80;" ]; then
+		ubus call service event '{"type":"acme.renew","data":{}}'
+	fi
+}
+
+config_list_foreach global wan_interface handle_wan_interface
