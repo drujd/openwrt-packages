@@ -40,7 +40,7 @@ define Package/krb5-libs
 	SECTION:=net
 	CATEGORY:=Network
 	TITLE:=Kerberos
-	DEPENDS:=+libncurses +libss +libcomerr
+	DEPENDS:=+libncurses +libss +libcomerr +openssl-util +@OPENSSL_WITH_CAMELLIA
 	TITLE:=Kerberos 5 Shared Libraries
 	URL:=http://web.mit.edu/kerberos/
 endef
@@ -86,13 +86,13 @@ CONFIGURE_ARGS += \
 	--with-system-et \
 	--without-system-verto \
 	--without-tcl \
-	--without-tls-impl \
+	--with-tls-impl=openssl \
 	--without-libedit \
 	--without-readline \
 	--disable-rpath \
 	--disable-pkinit \
 	--with-size-optimizations \
-	--with-crypto-impl=builtin
+	--with-crypto-impl=openssl
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include
@@ -145,11 +145,6 @@ define Package/krb5-server-extras/install
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/kadmind $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/kprop $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/kpropd $(1)/usr/sbin
-endef
-
-define Package/krb5-server/postinst
-mkdir -p $${IPKG_INSTROOT}/etc/krb5kdc
-touch $${IPKG_INSTROOT}/etc/krb5kdc/kadm5.acl
 endef
 
 $(eval $(call BuildPackage,krb5-libs))

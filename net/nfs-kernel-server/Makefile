@@ -20,6 +20,7 @@ PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
 PKG_BUILD_DEPENDS:=$(PKG_NAME)/host libevent2
 HOST_BUILD_DEPENDS:=libtirpc/host
+PKG_FIXUP:=patch-libtool
 
 PKG_CONFIG_DEPENDS:= \
 	CONFIG_IPV6 \
@@ -32,7 +33,7 @@ define Package/nfs-kernel-server/Default
 	SECTION:=net
 	CATEGORY:=Network
 	SUBMENU:=Filesystem
-	DEPENDS:=+libblkid +libuuid +libtirpc
+	DEPENDS:=+libblkid +libuuid +libtirpc +libevent2-core
 	URL:=http://nfs.sourceforge.net/
 	MAINTAINER:=Peter Wagner <tripolar@gmx.at>
 endef
@@ -96,6 +97,7 @@ endef
 TARGET_CFLAGS += -Wno-error=implicit-function-declaration \
 		 -Wno-error=strict-prototypes \
 		 -Wno-error=incompatible-pointer-types \
+		 -Wno-error=format \
 		 -Wno-error=format-security \
 		 -Wno-error=undef \
 		 -Wno-error=missing-include-dirs
@@ -108,13 +110,13 @@ TARGET_LDFLAGS += -L$(STAGING_DIR)/usr/lib/libevent
 
 CONFIGURE_ARGS += \
 	--disable-caps \
-	--disable-gss \
 	--disable-junction \
 	--disable-nfsdctl \
 	--disable-nfsdcld \
 	--disable-nfsdcltrack \
 	--enable-shared \
 	--enable-static \
+    --enable-svcgss \
 	--with-rpcgen=internal \
 	$(if $(CONFIG_NFS_KERNEL_SERVER_V4),--enable,--disable)-nfsv4 \
 	$(if $(CONFIG_NFS_KERNEL_SERVER_V4),--enable,--disable)-nfsv41
@@ -183,11 +185,14 @@ define Package/nfs-kernel-server/install
 	$(INSTALL_DIR) $(1)/etc/init.d $(1)/usr/sbin
 	$(INSTALL_DATA) ./files/nfsd.exports $(1)/etc/exports
 	$(INSTALL_BIN) ./files/nfsd.init $(1)/etc/init.d/nfsd
+	$(INSTALL_BIN) ./files/svcgssd.init $(1)/etc/init.d/svcgssd
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/utils/statd/sm-notify $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/utils/statd/statd $(1)/usr/sbin/rpc.statd
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/utils/nfsd/nfsd $(1)/usr/sbin/rpc.nfsd
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/utils/mountd/mountd $(1)/usr/sbin/rpc.mountd
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/utils/exportfs/exportfs $(1)/usr/sbin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/utils/gssd/gssd $(1)/usr/sbin/rpc.gssd
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/utils/gssd/svcgssd $(1)/usr/sbin/rpc.svcgssd
 endef
 
 define Package/nfs-kernel-server-utils/install
@@ -214,6 +219,8 @@ endef
 define Package/nfs-utils-libs/install
 	$(INSTALL_DIR) $(1)/usr/lib
 	$(if $(CONFIG_NFS_KERNEL_SERVER_V4),$(CP) $(PKG_INSTALL_DIR)/usr/lib/libnfsidmap.so* $(1)/usr/lib/,)
+	$(INSTALL_DIR) $(1)/usr/lib/libnfsidmap
+	$(if $(CONFIG_NFS_KERNEL_SERVER_V4),$(CP) $(PKG_INSTALL_DIR)/usr/lib/libnfsidmap/*.so* $(1)/usr/lib/libnfsidmap/,)
 endef
 
 $(eval $(call HostBuild))

@@ -24,10 +24,9 @@ define Package/libtirpc
   CATEGORY:=Libraries
   TITLE:=Library TI RPC for RPC bindings
   URL:=http://libtirpc.sourceforge.net/
-  DEPENDS:=+libpthread
+  DEPENDS:=+libpthread +krb5-libs
 endef
 
-CONFIGURE_ARGS += --disable-gssapi
 HOST_CONFIGURE_ARGS += --disable-gssapi --disable-shared
 
 ifeq ($(HOST_OS),Darwin)
