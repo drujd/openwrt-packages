@@ -7,9 +7,9 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=nfs-kernel-server
-PKG_VERSION:=2.6.2
-PKG_RELEASE:=4
-PKG_HASH:=26d46448982252e9e2c8346d10cf13e1143e7089c866f53e25db3359f3e9493c
+PKG_VERSION:=2.8.1
+PKG_RELEASE:=1
+PKG_HASH:=794583651702c0cbe12a66b16bef4f100d6661bcff94206d7a5a404bd16d75ab
 
 PKG_SOURCE_URL:=@SF/nfs
 PKG_SOURCE:=nfs-utils-$(PKG_VERSION).tar.xz
@@ -109,6 +109,8 @@ TARGET_LDFLAGS += -L$(STAGING_DIR)/usr/lib/libevent
 CONFIGURE_ARGS += \
 	--disable-caps \
 	--disable-gss \
+	--disable-junction \
+	--disable-nfsdctl \
 	--disable-nfsdcld \
 	--disable-nfsdcltrack \
 	--enable-shared \
@@ -140,8 +142,11 @@ HOST_CFLAGS += -Dlinux \
 
 HOST_CONFIGURE_ARGS += \
 	--disable-gss \
+	--disable-junction \
+	--disable-nfsdctl \
 	--disable-nfsv4 \
 	--disable-nfsv41 \
+	--disable-nfsrahead \
 	--without-tcp-wrappers \
 	--with-rpcgen=internal
 
