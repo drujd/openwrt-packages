@@ -1,0 +1,19 @@
+#!/bin/sh /etc/rc.common
+
+USE_PROCD=1
+START=99
+STOP=50
+
+CERT_KEY="/etc/sentinel_dynfw_server.pub"
+NFSET="turris-sn-dynfw-block"
+
+start_service() {
+    procd_open_instance
+    procd_set_param command dynfw-nfset-client
+    procd_append_param command --table "fw4"
+    procd_append_param command --set "$NFSET"
+    procd_append_param command --cert "$CERT_KEY"
+    # If not started, try ten times while waiting for 5 secs between tries
+    procd_set_param respawn 600 5 10
+    procd_close_instance
+}
